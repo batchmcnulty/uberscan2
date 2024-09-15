@@ -9,6 +9,7 @@ def PrintUsage():
 	print ("\t\t Copyright (c) 2024 Batch McNulty")
 	print ("")
 	#print ("UNDER CONSTRUCTION:")
+	#print ("-key				Key for editing BOOKMARK.TXT")
 	#print ("-hack: keepwhois	Scan whois, but keep files ")
 	#print ("-waitrand: nn		wait a random number of seconds between 1 and nn between tries")
 	#print (" END OF UNDER CONSTRUCTION")
@@ -21,7 +22,7 @@ def PrintUsage():
 	print ("-save: blah.txt		save to bookmark file blah.txt (saves to BOOKMARK.TXT by default)")
 	print ("-resume: blah.txt	Resume from bookmark file bookmark.txt")
 	print ("-timeout: nn		Timeout value in seconds (duh). Also waits this many seconds between tries")
-	print ("-port: nn			where nn = port number (ie, 25)")
+	print ("-port: nn		where nn = port number (ie, 25)")
 	print ("-hack: searchwhois: foo	Search WHOIS database for content foo (case insensetive")
 	print ("-hack: smtphelo		Auto test numbers in ipnumbers.txt again smtp HELO command")
 	print ("-hack: smtphack		Try the SMTP hack")
@@ -35,10 +36,11 @@ def PrintUsage():
 	print ("-userfile: blah.txt	Use blah.txt instead of usernames.txt")
 	print ("-pwdfile: blah.txt	Use blah.txt instead of passwords.txt")
 	print ("\n -examples		Manual and usage examples (not saved)")
+	print (" -key			Key for editing BOOKMARK.TXT (not saved)")
 	print ("")
 	print ("NB: Default behaviour is to try random ip addresses with a timeout of 2 seconds")
 	print ("")
-
+#	quit()
 
 ########################### PRINTEXAMPLES ############################
 
@@ -56,8 +58,41 @@ def PrintExamples():
 	print ("When searching for new prospects, always check the dumpfile (dump.txt unless you specify otherwise) as it won't always pick up every single thing it finds. However be aware that they're in the dumpfile for a reason so stuff found there might not work.")
 	print ("")
 
+def PrintKey():
+	print ("\n")
+	print ("--------- KEY for editing BOOKMARK.TXT -------------")
+	print ("\n")
+	print (" LINE		KEY")
+	print ("")
+	print ("  1	Name of the resume file, ie BOOKMARK.TXT")
+	print ("  2	Name of the ip numbers file, if applic, otherwise False")
+	print ("  3	Name of the usernames file, ie usernames.txt")
+	print ("  4	Name of the passwords file, ie passwords.txt")
+	print ("  5	Name of the file to print successes to, ie success.txt")
+	print ("  6	-keepfound rider variable. True or False")
+	print ("  7	Name of the file to print found IPs to, ie found.txt or False of not applicable")
+	print ("  8	-timeout: rider / internal variable, ie 2")
+	print ("  9	Depracated, set to n/a")
+	print (" 10	ip_idx internal variable. Index of bookmark in ip numbers file, or n/a if not applicable")
+	print (" 11	-port: rider / internal varibale, the port to scan on, ie 23")
+	print (" 12	-hack: rider / internal variable, which hack to use, ie telnet")
+	print (" 13	user_idx internal variable. Index of usernames file, ie 5, or n/a if not applicable")
+	print (" 14	pwd_idx internal variable. Index of passwords file, ie 2, or n/a if not applicable")
+	print (" 15	Name of the dump file for dumping interesting stuff we've found. This is usally dump.txt")
+	print (" 16	IP number if single-crack mode, otherwise n/a")
+	print (" 17	-hourly_backup rider / internal variable. True or False")
+	print (" 18	-test_interval rider / internal variable. Numeric")
+	print (" 19	-number_of_pings rider / internal variable. Numeric")
+	print (" 20	-ping_target	rider / internal varianble, ie google.com")
+	print ("\n")
+'''
+ip number
+hourlly backup
+test interval
+number of pings 
+ping target
 
-
+'''
 
 #************************ Hacksmtp_helo *************************
 def Hacksmtp_helo (serverHost, serverPort, timeout):
@@ -438,15 +473,19 @@ def HackTelnet (serverHost, serverPort, username, password, timeout):
 		#print (data (socket))
 
 	time.sleep(timeout)	
-
+	#data = sockobj.recv(1023)
+	
 	try:
-		data = sockobj.recv(1024)
+		data = sockobj.recv(1023)
 	except:
+		'''
 		print ("Couldn't recv, dumping data....")
 		print ("There's something there but I can't get to it. Keep this IP for later.")
 		DumpData(serverHost,serverPort, username, password, timeout, data, dumpfile)
 		return ("BADIP")
-
+		'''
+		print ("Detected the other kind of prompt, skipping recv....")
+	
 	time.sleep(0.1)
 	result = repr(data)
 	openhandles = sockobj.close()
@@ -716,7 +755,7 @@ def DoOnlineTest(number_of_pings, ping_target, test_interval, test_counter):
 	
 	tests_run = 0
 	webpage = "NOT YET ASSIGNED BY PROGRAM"
-	
+	timetosleep = 1
 	if (test_interval % test_counter == 0):
 		
 		test_passed = False
@@ -734,8 +773,10 @@ def DoOnlineTest(number_of_pings, ping_target, test_interval, test_counter):
 			print ("tests run:",tests_run)
 			print ("ping target:",ping_target)
 			print ("We're NOT ONLINE! ARGH! Sleeping 600s...")
-			time.sleep(600)
-				
+			if (timetosleep < 100):	timetosleep = timetosleep * 10
+			elif (timetosleep < 600):	timetosleep += (tests_run * 100)
+			time.sleep(timetosleep)
+
 			#quit ("online testville")
 
 
@@ -1009,6 +1050,7 @@ print ("ping_target:",ping_target, type(ping_target))
 
 
 
+
 if (port == False):
 	if (hack == "smtphack"):
 		port = 25
@@ -1024,6 +1066,8 @@ if (resume == False):
 			PrintUsage()
 			examples = GetSingleOption("-examples")
 			if (examples == True):	PrintExamples()
+			key = GetSingleOption("-key")
+			if (key == True):	PrintKey()
 			quit()
 		else:
 			if (port == "23"):
