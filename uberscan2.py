@@ -102,10 +102,10 @@ def PrintKey():
 	print (" 22	-timeout: rider / internal variable, ie 2")
 	print (" 23	-retries: rider / internal variable, ie 10.")
 	print (" 24	-halt_on_hack rider / internal variable, ie True")
-	print (" 26 -redials: rider / internal variable, ie 3.")
-	print (" 27	-bad_ip_logging: rider / internal variable, ie True.")
+	print (" 25 -redials: rider / internal variable, ie 3.")
+	print (" 26	-bad_ip_logging: rider / internal variable, ie True.")
+	print (" 27	Reserved for future use.")
 	print (" 28	Reserved for future use.")
-	print (" 29	Reserved for future use.")
 	print ("\n")
 	'''
 	ip number
